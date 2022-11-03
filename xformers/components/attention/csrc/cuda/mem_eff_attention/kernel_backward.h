@@ -58,6 +58,7 @@ constexpr int getWarpsPerSm() {
 template <
     // which arch we target (eg `cutlass::arch::Sm80`)
     typename ArchTag_,
+    int kArchCC,
     // input/output type
     typename scalar_t_,
     // run optimized kernel because memory accesses will be aligned
@@ -226,7 +227,7 @@ struct AttentionBackwardKernel {
   static constexpr int64_t kMinBlocksPerSm =
       getWarpsPerSm<scalar_t, ArchTag>() / kNumWarpsPerBlock;
 
-  using GemmType = DefaultGemmType<ArchTag, scalar_t>;
+  using GemmType = DefaultGemmType<ArchTag, kArchCC, scalar_t>;
   using DefaultConfig =
       typename cutlass::gemm::device::DefaultGemmConfiguration<
           typename GemmType::OpClass,
@@ -1524,9 +1525,9 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
     using Kernel = __VA_ARGS__;
 #define _ATTENTION_KERNEL_BACKWARD_END() }
 
-#define INSTANTIATE_ATTENTION_KERNEL_BACKWARD(ARCH, ...)             \
+#define INSTANTIATE_ATTENTION_KERNEL_BACKWARD(ARCH, ARCH_CC, ...)             \
   _ATTENTION_KERNEL_BACKWARD_BEGIN(                                  \
-      AttentionBackwardKernel<cutlass::arch::Sm##ARCH, __VA_ARGS__>) \
+      AttentionBackwardKernel<cutlass::arch::Sm##ARCH, ARCH_CC, __VA_ARGS__>) \
   p.advance_to_block();                                              \
   Kernel::kernel(p);                                                 \
   _ATTENTION_KERNEL_BACKWARD_END();
@@ -1537,9 +1538,9 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
 #define __CUDA_ARCH_OR_ZERO__ 0
 #endif
 
-#define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_DISABLED(ARCH, ...)                \
+#define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_DISABLED(ARCH, ARCH_CC, ...)                \
   _ATTENTION_KERNEL_BACKWARD_BEGIN(                                              \
-      AttentionBackwardKernel<cutlass::arch::Sm##ARCH, __VA_ARGS__>)             \
+      AttentionBackwardKernel<cutlass::arch::Sm##ARCH, ARCH_CC, __VA_ARGS__>)             \
   printf(                                                                        \
       "FATAL: this function is for sm%d, but was built with __CUDA_ARCH__=%d\n", \
       int(ARCH),                                                                 \
@@ -1548,13 +1549,15 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
 
 // All kernels are disabled by default
 #define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM50(...) \
-  INSTANTIATE_ATTENTION_KERNEL_BACKWARD_DISABLED(50, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_BACKWARD_DISABLED(50, 50, __VA_ARGS__)
 #define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM70(...) \
-  INSTANTIATE_ATTENTION_KERNEL_BACKWARD_DISABLED(70, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_BACKWARD_DISABLED(70, 70, __VA_ARGS__)
 #define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM75(...) \
-  INSTANTIATE_ATTENTION_KERNEL_BACKWARD_DISABLED(75, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_BACKWARD_DISABLED(75, 75, __VA_ARGS__)
 #define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM80(...) \
-  INSTANTIATE_ATTENTION_KERNEL_BACKWARD_DISABLED(80, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_BACKWARD_DISABLED(80, 80, __VA_ARGS__)
+#define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM86(...) \
+  INSTANTIATE_ATTENTION_KERNEL_BACKWARD_DISABLED(80, 86, __VA_ARGS__)
 
 // Enable the right one based on __CUDA_ARCH__
 #ifndef __CUDA_ARCH__
@@ -1563,17 +1566,21 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
 #elif __CUDA_ARCH__ < 700
 #undef INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM50
 #define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM50(...) \
-  INSTANTIATE_ATTENTION_KERNEL_BACKWARD(50, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_BACKWARD(50, 50, __VA_ARGS__)
 #elif __CUDA_ARCH__ < 750
 #undef INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM70
 #define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM70(...) \
-  INSTANTIATE_ATTENTION_KERNEL_BACKWARD(70, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_BACKWARD(70, 70, __VA_ARGS__)
 #elif __CUDA_ARCH__ < 800
 #undef INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM75
 #define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM75(...) \
-  INSTANTIATE_ATTENTION_KERNEL_BACKWARD(75, __VA_ARGS__)
-#elif __CUDA_ARCH__ >= 800
+  INSTANTIATE_ATTENTION_KERNEL_BACKWARD(75, 75, __VA_ARGS__)
+#elif __CUDA_ARCH__ < 860
 #undef INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM80
 #define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM80(...) \
-  INSTANTIATE_ATTENTION_KERNEL_BACKWARD(80, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_BACKWARD(80, 80, __VA_ARGS__)
+#elif __CUDA_ARCH__ >= 860
+#undef INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM86
+#define INSTANTIATE_ATTENTION_KERNEL_BACKWARD_SM86(...) \
+  INSTANTIATE_ATTENTION_KERNEL_BACKWARD(80, 86, __VA_ARGS__)
 #endif

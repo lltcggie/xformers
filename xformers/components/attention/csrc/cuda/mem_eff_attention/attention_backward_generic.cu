@@ -26,7 +26,7 @@
             DISPATCH_ARCHTAG(                                                  \
                 computeCapability, ([&]() {                                    \
                   using AlignedAK =                                            \
-                      AttentionBackwardKernel<ArchTag, scalar_t, true, kMaxK>; \
+                      AttentionBackwardKernel<ArchTag, ArchCC, scalar_t, true, kMaxK>; \
                   bool isAligned =                                             \
                       (QUERY.stride(2) % AlignedAK::kOptimalAlignement == 0 && \
                        KEY.stride(2) % AlignedAK::kOptimalAlignement == 0 &&   \
@@ -34,6 +34,7 @@
                   DISPATCH_BOOL(isAligned, kIsAligned, ([&]() {                \
                                   using Kernel = AttentionBackwardKernel<      \
                                       ArchTag,                                 \
+                                      ArchCC,                                  \
                                       scalar_t,                                \
                                       kIsAligned,                              \
                                       kMaxK>;                                  \

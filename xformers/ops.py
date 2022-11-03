@@ -349,7 +349,7 @@ class MemoryEfficientAttentionCutlassOp(AttentionOpBase):
         bits_per_scalar = {torch.float: 32, torch.half: 16, torch.bfloat16: 16}[d.dtype]
         uses_tensorcores = cls.uses_tensorcores(d, bits_per_scalar == 16)
         matmul_alignment_mn = 1
-        if sm >= 80:
+        if sm == 80:
             matmul_alignment_mn = 4
         if uses_tensorcores:
             matmul_alignment_mn = max(matmul_alignment_mn, 128 // bits_per_scalar)

@@ -56,6 +56,7 @@ template <
     typename scalar_t_,
     // Architecture we are targeting (eg `cutlass::arch::Sm80`)
     typename ArchTag,
+    int kArchCC,
     // If Q/K/V are correctly aligned in memory and we can run a fast kernel
     bool isAligned_,
     int kQueriesPerBlock,
@@ -228,7 +229,7 @@ struct AttentionKernel {
       into a shared-memory ("AccumulatorSharedStorage") that is used later as
       operand A for the second matmul (see MM1)
     */
-    using GemmType = DefaultGemmType<ArchTag, scalar_t>;
+    using GemmType = DefaultGemmType<ArchTag, kArchCC, scalar_t>;
 
     using OpClass = typename GemmType::OpClass;
     using DefaultConfig =
@@ -295,7 +296,7 @@ struct AttentionKernel {
       Second matmul: perform `attn @ V` where `attn` is the attention (not
       normalized) and stored in shared memory
     */
-    using GemmType = DefaultGemmType<ArchTag, scalar_t>;
+    using GemmType = DefaultGemmType<ArchTag, kArchCC, scalar_t>;
 
     using OpClass = typename GemmType::OpClass;
     using DefaultConfig =
@@ -843,6 +844,7 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
 
 #define INSTANTIATE_ATTENTION_KERNEL_FORWARD(              \
     ARCH,                                                  \
+    ARCH_CC,                                               \
     SCALAR_T,                                              \
     IS_ALIGNED,                                            \
     QUERIES_PER_BLOCK,                                     \
@@ -851,6 +853,7 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
   _ATTENTION_KERNEL_FORWARD_BEGIN(AttentionKernel<         \
                                   SCALAR_T,                \
                                   cutlass::arch::Sm##ARCH, \
+                                  ARCH_CC,                 \
                                   IS_ALIGNED,              \
                                   QUERIES_PER_BLOCK,       \
                                   KEYS_PER_BLOCK,          \
@@ -863,6 +866,7 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
 
 #define INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(              \
     ARCH,                                                           \
+    ARCH_CC,                                                        \
     SCALAR_T,                                                       \
     IS_ALIGNED,                                                     \
     QUERIES_PER_BLOCK,                                              \
@@ -871,6 +875,7 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
   _ATTENTION_KERNEL_FORWARD_BEGIN(AttentionKernel<                  \
                                   SCALAR_T,                         \
                                   cutlass::arch::Sm##ARCH,          \
+                                  ARCH_CC,                          \
                                   IS_ALIGNED,                       \
                                   QUERIES_PER_BLOCK,                \
                                   KEYS_PER_BLOCK,                   \
@@ -883,13 +888,15 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
 
 // All kernels are disabled by default
 #define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM50(...) \
-  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(50, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(50, 50, __VA_ARGS__)
 #define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM70(...) \
-  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(70, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(70, 70, __VA_ARGS__)
 #define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM75(...) \
-  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(75, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(75, 75, __VA_ARGS__)
 #define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM80(...) \
-  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(80, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(80, 80, __VA_ARGS__)
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM86(...) \
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(80, 86, __VA_ARGS__)
 
 // Enable the right one based on __CUDA_ARCH__
 #ifndef __CUDA_ARCH__
@@ -898,17 +905,21 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
 #elif __CUDA_ARCH__ < 700
 #undef INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM50
 #define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM50(...) \
-  INSTANTIATE_ATTENTION_KERNEL_FORWARD(50, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD(50, 50, __VA_ARGS__)
 #elif __CUDA_ARCH__ < 750
 #undef INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM70
 #define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM70(...) \
-  INSTANTIATE_ATTENTION_KERNEL_FORWARD(70, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD(70, 70, __VA_ARGS__)
 #elif __CUDA_ARCH__ < 800
 #undef INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM75
 #define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM75(...) \
-  INSTANTIATE_ATTENTION_KERNEL_FORWARD(75, __VA_ARGS__)
-#elif __CUDA_ARCH__ >= 800
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD(75, 75, __VA_ARGS__)
+#elif __CUDA_ARCH__ < 860
 #undef INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM80
 #define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM80(...) \
-  INSTANTIATE_ATTENTION_KERNEL_FORWARD(80, __VA_ARGS__)
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD(80, 80, __VA_ARGS__)
+#elif __CUDA_ARCH__ >= 860
+#undef INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM86
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM86(...) \
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD(80, 86, __VA_ARGS__)
 #endif

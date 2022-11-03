@@ -34,6 +34,7 @@
                       using AlignedAK = AttentionKernel<                      \
                           scalar_t,                                           \
                           ArchTag,                                            \
+                          ArchCC,                                             \
                           true,                                               \
                           kQueriesPerBlock,                                   \
                           kKeysPerBlock,                                      \
@@ -50,6 +51,7 @@
                                       using Kernel = AttentionKernel<         \
                                           scalar_t,                           \
                                           ArchTag,                            \
+                                          ArchCC,                             \
                                           kIsAligned,                         \
                                           kQueriesPerBlock,                   \
                                           kKeysPerBlock,                      \

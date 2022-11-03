@@ -33,17 +33,25 @@
   }
 #define DISPATCH_ARCHTAG(CC, func)                                        \
   {                                                                       \
-    if (CC >= 80) {                                                       \
+    if (CC >= 86) {                                                       \
       using ArchTag = cutlass::arch::Sm80;                                \
+      const int ArchCC = 86;                                              \
+      func();                                                             \
+    } else if (CC >= 80) {                                                \
+      using ArchTag = cutlass::arch::Sm80;                                \
+      const int ArchCC = 80;                                              \
       func();                                                             \
     } else if (CC >= 75) {                                                \
       using ArchTag = cutlass::arch::Sm75;                                \
+      const int ArchCC  = 75;                                             \
       func();                                                             \
     } else if (CC >= 70) {                                                \
       using ArchTag = cutlass::arch::Sm70;                                \
+      const int ArchCC  = 70;                                             \
       func();                                                             \
     } else if (CC >= 50) {                                                \
       using ArchTag = cutlass::arch::Sm50;                                \
+      const int ArchCC  = 50;                                             \
       func();                                                             \
     } else {                                                              \
       TORCH_CHECK(                                                        \
@@ -161,7 +169,7 @@ constexpr CUTLASS_HOST_DEVICE integer ceil_div(integer n, integer m) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Fallback to Simt (FMA on cuda cores) if not in a special case below
-template <typename ArchTag, typename scalar_t_, typename Enable = void>
+template <typename ArchTag, int ArchCC, typename scalar_t_, typename Enable = void>
 struct DefaultGemmType {
   static constexpr int ThreadK = 8;
   static constexpr int WarpK = 8;
@@ -172,12 +180,14 @@ struct DefaultGemmType {
 };
 
 // Specialization for tensorcores with f32
-template <typename ArchTag>
+template <typename ArchTag, int ArchCC>
 struct DefaultGemmType<
     ArchTag,
+    ArchCC,
     float,
     typename cutlass::platform::enable_if<
-        ArchTag::kMinComputeCapability >= 80>::type> {
+        ArchTag::kMinComputeCapability >= 80 &&
+        ArchCC == 80>::type> {
   static constexpr int ThreadK = 32;
   static constexpr int WarpK = 32;
   static constexpr int kMinimumAlignment = 4;
@@ -187,9 +197,10 @@ struct DefaultGemmType<
 };
 
 // Specialization for tensorcores with f16/bf16 - Sm75+
-template <typename ArchTag, typename scalar_t>
+template <typename ArchTag, int ArchCC, typename scalar_t>
 struct DefaultGemmType<
     ArchTag,
+    ArchCC,
     scalar_t,
     typename cutlass::platform::enable_if<
         ArchTag::kMinComputeCapability >= 75 &&
@@ -204,7 +215,7 @@ struct DefaultGemmType<
 
 // Specialization for tensorcores with f16 - Volta
 template <>
-struct DefaultGemmType<cutlass::arch::Sm70, cutlass::half_t, void> {
+struct DefaultGemmType<cutlass::arch::Sm70, 70, cutlass::half_t, void> {
   static constexpr int ThreadK = 32;
   static constexpr int WarpK = 32;
   static constexpr int kMinimumAlignment = 2;
