@@ -409,7 +409,7 @@ class MemoryEfficientAttentionFlashAttentionOp(AttentionOpBase):
         # We know `d.device` is cuda now
         # d=128 is only supported on A100
         device_capability = torch.cuda.get_device_capability(d.device)
-        is_sm80 = device_capability[0] >= 8
+        is_sm80 = device_capability == (8, 0)
         if d.k not in [16, 32, 64, 128] or (d.k == 128 and not is_sm80):
             return False
         return device_capability >= (7, 5)
